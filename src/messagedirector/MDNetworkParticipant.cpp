@@ -4,8 +4,9 @@
 #include <boost/bind.hpp>
 
 MDNetworkParticipant::MDNetworkParticipant(boost::asio::ip::tcp::socket *socket)
-	: MDParticipantInterface(), NetworkClient(socket)
+	: MDParticipantInterface(), NetworkClient()
 {
+	set_socket(socket);
 	set_con_name("Network Participant");
 }
 

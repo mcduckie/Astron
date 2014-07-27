@@ -27,11 +27,9 @@ class NetworkClient
 
 	protected:
 		NetworkClient();
-		NetworkClient(boost::asio::ip::tcp::socket *socket);
-		NetworkClient(boost::asio::ssl::stream<boost::asio::ip::tcp::socket> *stream);
 		virtual ~NetworkClient();
-		void set_socket(boost::asio::ip::tcp::socket *socket);
-		void set_socket(boost::asio::ssl::stream<boost::asio::ip::tcp::socket> *stream);
+		bool set_socket(boost::asio::ip::tcp::socket *socket);
+		bool set_socket(boost::asio::ssl::stream<boost::asio::ip::tcp::socket> *stream);
 		void set_write_timeout(unsigned int timeout);
 		void set_write_buffer(uint64_t max_bytes);
 

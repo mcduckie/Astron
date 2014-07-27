@@ -14,30 +14,13 @@ NetworkClient::NetworkClient() : m_socket(nullptr), m_secure_socket(nullptr), m_
 {
 }
 
-NetworkClient::NetworkClient(tcp::socket *socket) : m_socket(socket), m_secure_socket(nullptr),
-	m_remote(), m_async_timer(io_service), m_is_sending(false), m_is_receiving(false),
-	m_is_data(false), m_data_buf(nullptr), m_data_size(0), m_total_queue_size(0),
-	m_max_queue_size(0), m_write_timeout(0), m_send_queue(), m_error(NetworkClient::Error::NONE)
-{
-	start_receive();
-}
-
-NetworkClient::NetworkClient(ssl::stream<tcp::socket>* stream) :
-	m_socket(&stream->next_layer()), m_secure_socket(stream), m_remote(), m_async_timer(io_service),
-	m_is_sending(false), m_is_receiving(false), m_is_data(false), m_data_buf(nullptr),
-	m_data_size(0), m_total_queue_size(0), m_max_queue_size(0), m_write_timeout(0), m_send_queue(),
-	m_error(NetworkClient::Error::NONE)
-{
-	start_receive();
-}
-
 NetworkClient::~NetworkClient()
 {
 	delete m_socket;
 	delete [] m_data_buf;
 }
 
-void NetworkClient::set_socket(tcp::socket *socket)
+bool NetworkClient::set_socket(tcp::socket *socket)
 {
 	lock_guard<recursive_mutex> lock(m_lock);
 	if(m_socket)
@@ -52,10 +35,23 @@ void NetworkClient::set_socket(tcp::socket *socket)
 	boost::asio::ip::tcp::no_delay nodelay(true);
 	m_socket->set_option(nodelay);
 
+	try
+	{
+		m_remote = m_socket->remote_endpoint();
+	}
+	catch (const boost::system::system_error&)
+	{
+		// A client might disconnect immediately after connecting.
+		// Catch it and report that setting the socket failed. Resolves #122.
+		m_socket = nullptr;
+		return false;
+	}
+
 	start_receive();
+	return true;
 }
 
-void NetworkClient::set_socket(ssl::stream<tcp::socket> *stream)
+bool NetworkClient::set_socket(ssl::stream<tcp::socket> *stream)
 {
 	lock_guard<recursive_mutex> lock(m_lock);
 	if(m_socket)
@@ -64,7 +60,7 @@ void NetworkClient::set_socket(ssl::stream<tcp::socket> *stream)
 	}
 
 	m_secure_socket = stream;
-	set_socket(&stream->next_layer());
+	return set_socket(&stream->next_layer());
 }
 
 void NetworkClient::set_write_timeout(unsigned int timeout)
@@ -116,17 +112,6 @@ bool NetworkClient::is_connected()
 
 void NetworkClient::start_receive()
 {
-	try
-	{
-		m_remote = m_socket->remote_endpoint();
-	}
-	catch (const boost::system::system_error&)
-	{
-		// A client might disconnect immediately after connecting.
-		// Since we are in the constructor, ignore it. Resolves #122.
-		// When the owner of the NetworkClient attempts to send or receive,
-		// the error will occur and we'll cleanup then;
-	}
 	async_receive();
 }
 
