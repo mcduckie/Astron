@@ -82,7 +82,6 @@ class NetworkClient
 		void socket_read(uint8_t* buf, size_t length, receive_handler_t callback);
 		void socket_write(std::list<boost::asio::const_buffer>&);
 
-		bool m_ssl_enabled;
 		bool m_is_sending;
 		bool m_is_receiving;
 

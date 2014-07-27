@@ -8,26 +8,25 @@ using boost::asio::ip::tcp;
 namespace ssl = boost::asio::ssl;
 
 NetworkClient::NetworkClient() : m_socket(nullptr), m_secure_socket(nullptr), m_remote(),
-	m_async_timer(io_service), m_ssl_enabled(false), m_is_sending(false), m_is_receiving(false),
-	m_is_data(false), m_data_buf(nullptr), m_data_size(0), m_total_queue_size(0),
-	m_max_queue_size(0), m_write_timeout(0), m_send_queue(),
-	m_error(NetworkClient::Error::NONE)
+	m_async_timer(io_service), m_is_sending(false), m_is_receiving(false), m_is_data(false),
+	m_data_buf(nullptr), m_data_size(0), m_total_queue_size(0), m_max_queue_size(0),
+	m_write_timeout(0), m_send_queue(), m_error(NetworkClient::Error::NONE)
 {
 }
 
 NetworkClient::NetworkClient(tcp::socket *socket) : m_socket(socket), m_secure_socket(nullptr),
-	m_remote(), m_async_timer(io_service), m_ssl_enabled(false), m_is_sending(false),
-	m_is_receiving(false), m_is_data(false), m_data_buf(nullptr), m_data_size(0),
-	m_total_queue_size(0), m_max_queue_size(0), m_write_timeout(0), m_send_queue()
+	m_remote(), m_async_timer(io_service), m_is_sending(false), m_is_receiving(false),
+	m_is_data(false), m_data_buf(nullptr), m_data_size(0), m_total_queue_size(0),
+	m_max_queue_size(0), m_write_timeout(0), m_send_queue(), m_error(NetworkClient::Error::NONE)
 {
 	start_receive();
 }
 
 NetworkClient::NetworkClient(ssl::stream<tcp::socket>* stream) :
 	m_socket(&stream->next_layer()), m_secure_socket(stream), m_remote(), m_async_timer(io_service),
-	m_ssl_enabled(true), m_is_sending(false), m_is_receiving(false), m_is_data(false),
-	m_data_buf(nullptr), m_data_size(0), m_total_queue_size(0), m_max_queue_size(0),
-	m_write_timeout(0), m_send_queue()
+	m_is_sending(false), m_is_receiving(false), m_is_data(false), m_data_buf(nullptr),
+	m_data_size(0), m_total_queue_size(0), m_max_queue_size(0), m_write_timeout(0), m_send_queue(),
+	m_error(NetworkClient::Error::NONE)
 {
 	start_receive();
 }
@@ -64,9 +63,7 @@ void NetworkClient::set_socket(ssl::stream<tcp::socket> *stream)
 		throw logic_error("Trying to set a socket of a network client whose socket was already set.");
 	}
 
-	m_ssl_enabled = true;
 	m_secure_socket = stream;
-
 	set_socket(&stream->next_layer());
 }
 
@@ -295,7 +292,7 @@ void NetworkClient::async_cancel()
 
 void NetworkClient::socket_read(uint8_t* buf, size_t length, receive_handler_t callback)
 {
-	if(m_ssl_enabled)
+	if(m_secure_socket != nullptr)
 	{
 		async_read(*m_secure_socket, boost::asio::buffer(buf, length),
 		           boost::bind(callback, this,
@@ -322,7 +319,7 @@ void NetworkClient::socket_write(list<boost::asio::const_buffer>& buffers)
 	}
 
 	// Start async write
-	if(m_ssl_enabled)
+	if(m_secure_socket != nullptr)
 	{
 		async_write(*m_secure_socket, buffers,
 		            boost::bind(&NetworkClient::send_finished, this,
