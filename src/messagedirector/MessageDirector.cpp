@@ -32,6 +32,11 @@ MessageDirector::MessageDirector() :  m_initialized(false), m_net_acceptor(NULL)
 MessageDirector::~MessageDirector()
 {
 	shutdown_threading();
+
+	for(auto it = m_participants.begin(); it != m_participants.end(); ++it) {
+		delete *it;
+	}
+	m_participants.clear();
 }
 
 void MessageDirector::init_network()
@@ -287,11 +292,15 @@ void MessageDirector::handle_connection(tcp::socket *socket)
 
 void MessageDirector::add_participant(MDParticipantInterface* p)
 {
+	std::lock_guard<std::mutex> lock(m_participants_lock);
+
 	m_participants.insert(m_participants.end(), p);
 }
 
 void MessageDirector::remove_participant(MDParticipantInterface* p)
 {
+	std::lock_guard<std::mutex> lock(m_participants_lock);
+
 	unsubscribe_all(p);
 
 	// Stop tracking participant

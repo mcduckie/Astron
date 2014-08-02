@@ -57,7 +57,8 @@ class AstronClient : public Client, public NetworkClient
 			initialize();
 		}
 
-		AstronClient(ConfigNode config, ClientAgent* client_agent, ssl::stream<tcp::socket> *stream) :
+		AstronClient(ConfigNode config, ClientAgent* client_agent,
+			         ssl::stream<tcp::socket> *stream) :
 			Client(client_agent), NetworkClient(stream), m_config(config),
 			m_clean_disconnect(false), m_relocate_owned(relocate_owned.get_rval(config)),
 			m_send_hash(send_hash_to_client.get_rval(config)),
@@ -84,22 +85,8 @@ class AstronClient : public Client, public NetworkClient
 			}
 
 			stringstream ss;
-			tcp::endpoint remote;
-			try
-			{
-				remote = m_socket->remote_endpoint();
-			}
-			catch (exception&)
-			{
-				// A client might disconnect immediately after connecting.
-				// If this happens, do nothing. Resolves #122.
-				// N.B. due to a Boost.Asio bug, the socket will (may?) still have
-				// is_open() == true, so we just catch the exception on remote_endpoint
-				// instead.
-				return;
-			}
-			ss << "Client (" << remote.address().to_string()
-			   << ":" << remote.port() << ", " << m_channel << ")";
+			ss << "Client (" << m_remote.address().to_string()
+			   << ":" << m_remote.port() << ", " << m_channel << ")";
 			m_log->set_name(ss.str());
 			set_con_name(ss.str());
 
@@ -108,8 +95,8 @@ class AstronClient : public Client, public NetworkClient
 
 			// Add remote endpoint to log
 			ss.str(""); // empty the stream
-			ss << remote.address().to_string()
-			   << ":" << remote.port();
+			ss << m_remote.address().to_string()
+			   << ":" << m_remote.port();
 			event.add("remote_address", ss.str());
 
 			// Add local endpoint to log
@@ -125,7 +112,7 @@ class AstronClient : public Client, public NetworkClient
 		// send_disconnect must close any connections with a connected client; the given reason and
 		// error should be forwarded to the client. Additionaly, it is recommend to log the event.
 		// Handler for CLIENTAGENT_EJECT.
-		void send_disconnect(uint16_t reason, const string &error_string, bool security = false)
+		virtual void send_disconnect(uint16_t reason, const string &error_string, bool security = false)
 		{
 			if(is_connected())
 			{
@@ -143,7 +130,7 @@ class AstronClient : public Client, public NetworkClient
 		}
 
 		// receive_datagram is the handler for datagrams received over the network from a Client.
-		void receive_datagram(DatagramHandle dg)
+		virtual void receive_datagram(DatagramHandle dg)
 		{
 			lock_guard<recursive_mutex> lock(m_client_lock);
 			DatagramIterator dgi(dg);
@@ -166,14 +153,14 @@ class AstronClient : public Client, public NetworkClient
 						break;
 				}
 			}
-			catch(DatagramIteratorEOF&)
+			catch(const DatagramIteratorEOF&)
 			{
 				// Occurs when a handler attempts to read past end of datagram
 				send_disconnect(CLIENT_DISCONNECT_TRUNCATED_DATAGRAM,
 				                "Datagram unexpectedly ended while iterating.");
 				return;
 			}
-			catch(DatagramOverflow&)
+			catch(const DatagramOverflow&)
 			{
 				// Occurs when a handler attempts to prepare or forward a datagram to be sent
 				// internally and, the resulting datagram is larger than the max datagram size.
@@ -196,7 +183,7 @@ class AstronClient : public Client, public NetworkClient
 		//     connection or otherwise when the tcp connection is lost.
 		// Note: In the Astron client protocol, the server is normally
 		//       responsible for terminating the connection.
-		void receive_disconnect()
+		virtual void receive_disconnect()
 		{
 			if(!m_clean_disconnect)
 			{
@@ -209,21 +196,21 @@ class AstronClient : public Client, public NetworkClient
 		// forward_datagram should foward the datagram to the client, or where appopriate parse
 		// the packet and send the appropriate equivalent data.
 		// Handler for CLIENTAGENT_SEND_DATAGRAM.
-		void forward_datagram(DatagramHandle dg)
+		virtual void forward_datagram(DatagramHandle dg)
 		{
 			send_datagram(dg);
 		}
 
 		// handle_drop should immediately disconnect the client without sending any more data.
 		// Handler for CLIENTAGENT_DROP.
-		void handle_drop()
+		virtual void handle_drop()
 		{
 			m_clean_disconnect = true;
 			NetworkClient::send_disconnect();
 		}
 
 		// handle_add_interest should inform the client of an interest added by the server.
-		void handle_add_interest(const Interest& i, uint32_t context)
+		virtual void handle_add_interest(const Interest& i, uint32_t context)
 		{
 			bool multiple = i.zones.size() > 1;
 
@@ -244,7 +231,7 @@ class AstronClient : public Client, public NetworkClient
 		}
 
 		// handle_remove_interest should inform the client an interest was removed by the server.
-		void handle_remove_interest(uint16_t interest_id, uint32_t context)
+		virtual void handle_remove_interest(uint16_t interest_id, uint32_t context)
 		{
 			DatagramPtr resp = Datagram::create();
 			resp->add_uint16(CLIENT_REMOVE_INTEREST);
@@ -256,7 +243,7 @@ class AstronClient : public Client, public NetworkClient
 		// handle_add_object should inform the client of a new object. The datagram iterator
 		// provided starts at the 'required fields' data, and may have optional fields following.
 		// Handler for OBJECT_ENTER_LOCATION (an object, enters the Client's interest).
-		void handle_add_object(doid_t do_id, doid_t parent_id, zone_t zone_id, uint16_t dc_id,
+		virtual void handle_add_object(doid_t do_id, doid_t parent_id, zone_t zone_id, uint16_t dc_id,
 		                       DatagramIterator &dgi, bool other)
 		{
 			DatagramPtr resp = Datagram::create();
@@ -271,7 +258,7 @@ class AstronClient : public Client, public NetworkClient
 		// handle_add_ownership should inform the client it has control of a new object. The datagram
 		// iterator provided starts at the 'required fields' data, and may have 'optional fields'.
 		// Handler for OBJECT_ENTER_OWNER (an object, enters the Client's ownership).
-		void handle_add_ownership(doid_t do_id, doid_t parent_id, zone_t zone_id, uint16_t dc_id,
+		virtual void handle_add_ownership(doid_t do_id, doid_t parent_id, zone_t zone_id, uint16_t dc_id,
 		                          DatagramIterator &dgi, bool other)
 		{
 			DatagramPtr resp = Datagram::create();
@@ -285,7 +272,7 @@ class AstronClient : public Client, public NetworkClient
 		}
 
 		// handle_set_field should inform the client that the field has been updated.
-		void handle_set_field(doid_t do_id, uint16_t field_id, DatagramIterator &dgi)
+		virtual void handle_set_field(doid_t do_id, uint16_t field_id, DatagramIterator &dgi)
 		{
 			DatagramPtr resp = Datagram::create();
 			resp->add_uint16(CLIENT_OBJECT_SET_FIELD);
@@ -296,7 +283,7 @@ class AstronClient : public Client, public NetworkClient
 		}
 
 		// handle_set_fields should inform the client that a group of fields has been updated.
-		void handle_set_fields(doid_t do_id, uint16_t num_fields, DatagramIterator &dgi)
+		virtual void handle_set_fields(doid_t do_id, uint16_t num_fields, DatagramIterator &dgi)
 		{
 			DatagramPtr resp = Datagram::create();
 			resp->add_uint16(CLIENT_OBJECT_SET_FIELDS);
@@ -307,7 +294,7 @@ class AstronClient : public Client, public NetworkClient
 		}
 
 		// handle_change_location should inform the client that the objects location has changed.
-		void handle_change_location(doid_t do_id, doid_t new_parent, zone_t new_zone)
+		virtual void handle_change_location(doid_t do_id, doid_t new_parent, zone_t new_zone)
 		{
 			DatagramPtr resp = Datagram::create();
 			resp->add_uint16(CLIENT_OBJECT_LOCATION);
@@ -319,7 +306,7 @@ class AstronClient : public Client, public NetworkClient
 		// handle_remove_object should send a mesage to remove the object from the connected client.
 		// Handler for cases where an object is no longer visible to the client;
 		//     for example, when it changes zone, leaves visibility, or is deleted.
-		void handle_remove_object(doid_t do_id)
+		virtual void handle_remove_object(doid_t do_id)
 		{
 			DatagramPtr resp = Datagram::create();
 			resp->add_uint16(CLIENT_OBJECT_LEAVING);
@@ -329,7 +316,7 @@ class AstronClient : public Client, public NetworkClient
 
 		// handle_remove_ownership should notify the client it no has control of the object.
 		// Handle when the client loses ownership of an object.
-		void handle_remove_ownership(doid_t do_id)
+		virtual void handle_remove_ownership(doid_t do_id)
 		{
 			DatagramPtr resp = Datagram::create();
 			resp->add_uint16(CLIENT_OBJECT_LEAVING_OWNER);
@@ -339,7 +326,7 @@ class AstronClient : public Client, public NetworkClient
 
 		// handle_interest_done is called when all of the objects from an opened interest have been
 		// received. Typically, informs the client that a particular group of objects is loaded.
-		void handle_interest_done(uint16_t interest_id, uint32_t context)
+		virtual void handle_interest_done(uint16_t interest_id, uint32_t context)
 		{
 			DatagramPtr resp = Datagram::create();
 			resp->add_uint16(CLIENT_DONE_INTEREST_RESP);
@@ -350,7 +337,7 @@ class AstronClient : public Client, public NetworkClient
 
 		// Client has just connected and should only send "CLIENT_HELLO"
 		// Only handles one message type, so it does not need to be split up.
-		void handle_pre_hello(DatagramIterator &dgi)
+		virtual void handle_pre_hello(DatagramIterator &dgi)
 		{
 			uint16_t msg_type = dgi.read_uint16();
 			if(msg_type != CLIENT_HELLO)
@@ -395,7 +382,7 @@ class AstronClient : public Client, public NetworkClient
 		}
 
 		// Client has sent "CLIENT_HELLO" and can now access anonymous uberdogs.
-		void handle_pre_auth(DatagramIterator &dgi)
+		virtual void handle_pre_auth(DatagramIterator &dgi)
 		{
 			uint16_t msg_type = dgi.read_uint16();
 			switch(msg_type)
@@ -424,7 +411,7 @@ class AstronClient : public Client, public NetworkClient
 
 		// An Uberdog or AI has declared the Client authenticated and the client
 		// can now interact with the server cluster normally.
-		void handle_authenticated(DatagramIterator &dgi)
+		virtual void handle_authenticated(DatagramIterator &dgi)
 		{
 			uint16_t msg_type = dgi.read_uint16();
 			switch(msg_type)
@@ -462,7 +449,7 @@ class AstronClient : public Client, public NetworkClient
 		}
 
 		// handle_client_object_update_field occurs when a client sends an OBJECT_SET_FIELD
-		void handle_client_object_update_field(DatagramIterator &dgi)
+		virtual void handle_client_object_update_field(DatagramIterator &dgi)
 		{
 			doid_t do_id = dgi.read_doid();
 			uint16_t field_id = dgi.read_uint16();
@@ -549,7 +536,7 @@ class AstronClient : public Client, public NetworkClient
 
 		// handle_client_object_location occurs when a client sends an OBJECT_LOCATION message.
 		// When sent by the client, this represents a request to change the object's location.
-		void handle_client_object_location(DatagramIterator &dgi)
+		virtual void handle_client_object_location(DatagramIterator &dgi)
 		{
 			// Check the client is configured to allow client-relocates
 			if(!m_relocate_owned)
@@ -597,7 +584,7 @@ class AstronClient : public Client, public NetworkClient
 		}
 
 		// handle_client_add_interest occurs is called when the client adds an interest.
-		void handle_client_add_interest(DatagramIterator &dgi, bool multiple)
+		virtual void handle_client_add_interest(DatagramIterator &dgi, bool multiple)
 		{
 			if(m_interests_allowed == INTERESTS_DISABLED)
 			{
@@ -622,7 +609,7 @@ class AstronClient : public Client, public NetworkClient
 		}
 
 		// handle_client_remove_interest is called when the client removes an interest.
-		void handle_client_remove_interest(DatagramIterator &dgi)
+		virtual void handle_client_remove_interest(DatagramIterator &dgi)
 		{
 			if(m_interests_allowed == INTERESTS_DISABLED)
 			{

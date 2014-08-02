@@ -3,11 +3,13 @@
 
 #include <boost/filesystem.hpp>
 #include "core/global.h"
+#include "core/shutdown.h"
 #include "core/RoleFactory.h"
 #include "config/constraints.h"
 #include "dclass/file/hash.h"
 #include "net/TcpAcceptor.h"
 #include "net/SslAcceptor.h"
+#include "util/password_prompt.h"
 using namespace std;
 namespace ssl = boost::asio::ssl;
 namespace filesystem = boost::filesystem;
@@ -86,11 +88,11 @@ ClientAgent::ClientAgent(RoleConfig roleconfig) : Role(roleconfig), m_net_accept
 	// Load SSL data from Config vars
 	ConfigNode tls_settings = clientagent_config.get_child_node(tls_config, roleconfig);
 
-	string certificate = tls_cert.get_rval(tls_settings);
-	string key_file = tls_key.get_rval(tls_settings);
+	m_ssl_cert = tls_cert.get_rval(tls_settings);
+	m_ssl_key = tls_key.get_rval(tls_settings);
 
 	// Handle no SSL
-	if(certificate.empty() && key_file.empty())
+	if(m_ssl_cert.empty() && m_ssl_key.empty())
 	{
 		m_log->debug() << "Not using SSL/TLS.\n";
 		TcpAcceptorCallback callback = std::bind(&ClientAgent::handle_tcp,
@@ -108,10 +110,10 @@ ClientAgent::ClientAgent(RoleConfig roleconfig) : Role(roleconfig), m_net_accept
 	}
 
 	// Handle SSL requested, but some information missing
-	else if(certificate.empty() != key_file.empty())
+	else if(m_ssl_cert.empty() != m_ssl_key.empty())
 	{
 		m_log->fatal() << "TLS requested but either certificate or key is missing.\n";
-		exit(1);
+		astron_shutdown(1);
 	}
 
 	// Handle SSL
@@ -145,8 +147,31 @@ ClientAgent::ClientAgent(RoleConfig roleconfig) : Role(roleconfig), m_net_accept
 		}
 
 		// Set the server certificate
-		m_ssl_ctx.use_certificate_file(certificate, ssl::context::file_format::pem);
-		m_ssl_ctx.use_private_key_file(tls_key.get_rval(tls_settings), ssl::context::file_format::pem);
+		m_ssl_ctx.use_certificate_file(m_ssl_cert, ssl::context::file_format::pem);
+
+		// Set the password callback
+		m_ssl_ctx.set_password_callback(boost::bind(&ClientAgent::ssl_password_callback, this));
+
+		// Set the private key
+		bool key_error = false;
+		for(int attempts = 0; attempts < 3; ++attempts)
+		{
+			try
+			{
+				m_ssl_ctx.use_private_key_file(m_ssl_key, ssl::context::file_format::pem);
+				key_error = false;
+				break;
+			}
+			catch(const boost::system::system_error& e)
+			{
+				key_error = true;
+			}
+		}
+		if(key_error)
+		{
+			m_log->fatal() << "Could not open SSL key file (" << m_ssl_key << ").\n";
+			exit(1);
+		}
 
 		// Set the certificate authority
 		string auth_file = tls_auth.get_rval(tls_settings);
@@ -178,9 +203,8 @@ ClientAgent::ClientAgent(RoleConfig roleconfig) : Role(roleconfig), m_net_accept
 		m_log->fatal() << "Could not bind listening port: "
 		               << bind_addr.get_val() << std::endl;
 		m_log->fatal() << "Error code: " << ec.value()
-		               << "(" << ec.category().message(ec.value()) << ")"
-		               << std::endl;
-		exit(1);
+		               << "(" << ec.category().message(ec.value()) << ")\n";
+		astron_shutdown(1);
 	}
 	m_net_acceptor->start();
 }
@@ -198,17 +222,18 @@ void ClientAgent::handle_tcp(tcp::socket *socket)
 	{
 		remote = socket->remote_endpoint();
 	}
-	catch (exception&)
+	catch (const boost::system::system_error&)
 	{
 		// A client might disconnect immediately after connecting.
 		// If this happens, do nothing. Resolves #122.
 		// N.B. due to a Boost.Asio bug, the socket will (may?) still have
 		// is_open() == true, so we just catch the exception on remote_endpoint
 		// instead.
+		delete socket;
 		return;
 	}
 	m_log->debug() << "Got an incoming connection from "
-	               << remote.address() << ":" << remote.port() << endl;
+	               << remote.address() << ":" << remote.port() << "\n";
 
 	ClientFactory::singleton().instantiate_client(m_client_type, m_clientconfig, this, socket);
 }
@@ -221,17 +246,18 @@ void ClientAgent::handle_ssl(ssl::stream<tcp::socket> *stream)
 	{
 		remote = stream->next_layer().remote_endpoint();
 	}
-	catch (exception&)
+	catch (const boost::system::system_error&)
 	{
 		// A client might disconnect immediately after connecting.
 		// If this happens, do nothing. Resolves #122.
 		// N.B. due to a Boost.Asio bug, the socket will (may?) still have
 		// is_open() == true, so we just catch the exception on remote_endpoint
 		// instead.
+		delete stream;
 		return;
 	}
 	m_log->debug() << "Got an incoming connection from "
-	               << remote.address() << ":" << remote.port() << endl;
+	               << remote.address() << ":" << remote.port() << "\n";
 
 	ClientFactory::singleton().instantiate_client(m_client_type, m_clientconfig, this, stream);
 }
@@ -241,6 +267,13 @@ void ClientAgent::handle_ssl(ssl::stream<tcp::socket> *stream)
 void ClientAgent::handle_datagram(DatagramHandle, DatagramIterator&)
 {
 	// At the moment, the client agent doesn't actually handle any datagrams
+}
+
+string ClientAgent::ssl_password_callback()
+{
+	stringstream prompt;
+	prompt << "Enter password for " << m_ssl_key << ": ";
+	return password_prompt(prompt.str());
 }
 
 static RoleFactoryItem<ClientAgent> ca_fact("clientagent");
