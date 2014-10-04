@@ -159,14 +159,6 @@ if(USE_128BIT_CHANNELS)
 	add_definitions(-DASTRON_128BIT_CHANNELS)
 endif()
 
-set(BUILD_TESTS OFF CACHE BOOL "If set to true, test files will be compiled in")
-if(BUILD_TESTS)
-	set(TEST_FILES
-		src/tests/MDParticipantTest.cpp
-		src/tests/MDPerformanceTest.cpp
-	)
-endif()
-
 set(BUILD_DBSERVER ON CACHE BOOL "If on, Database Server will be built into binary")
 if(BUILD_DBSERVER)
 	add_definitions(-DBUILD_DBSERVER)
@@ -424,21 +416,12 @@ if(DBSERVER_FILES)
 	add_definitions(-DBUILD_STATESERVER_DBSS)
 	source_group("DatabaseServer" FILES ${DBSERVER_FILES})
 endif()
-if(TEST_FILES)
-	source_group("DaemonTests" FILES ${TEST_FILES})
-endif()
 
-### Header source group ###
-#foreach(sourcefile IN LISTS ASTROND_SOURCES)
-#	if(sourcefile MATCHES .*\\.h)
-#		set(ASTROND_HEADERS "${ASTROND_HEADERS} ${sourcefile}")
-#	endif()
-#endforeach(sourcefile)
-#source_group("Header Files" FILES ${ASTROND_HEADERS})
-
+### Build dclass library
 add_subdirectory(src/dclass)
-
 add_dependencies(astrond dclass)
+
+### Link Astron
 target_link_libraries(astrond dclass ${OPENSSL_LIBRARIES} ${YAMLCPP_LIBNAME} ${Boost_LIBRARIES} ${SOCI_LIBRARY_NAMES})
 
 ### Handle some final testing configuration ###
