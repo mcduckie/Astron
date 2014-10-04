@@ -1,17 +1,17 @@
-#include "global.h"
-#include "shutdown.h"
-#include "RoleFactory.h"
-#include "config/constraints.h"
-#include "dclass/file/read.h"
-#include "dclass/dc/Class.h"
-using dclass::Class;
-
-#include <boost/filesystem.hpp>
 #include <cstring>
 #include <string>  // std::string
 #include <vector>  // std::vector
 #include <fstream> // std::ifstream
+#include <boost/filesystem.hpp>
 using namespace std;
+
+#include "config/constraints.h"
+#include "core/global.h"
+#include "core/shutdown.h"
+#include "core/RoleFactory.h"
+#include "dclass/file/read.h"
+#include "dclass/dc/Class.h"
+using dclass::Class;
 
 static LogCategory mainlog("main", "Main");
 
@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
                 sev = LSEVERITY_SECURITY;
                 g_logger->set_min_severity(sev);
             } else if(llstr != "error" && llstr != "fatal") {
-                cerr << "Unknown log-level \"" << llstr << "\"." << endl;
+                cerr << "Unknown log-level \"" << llstr << "\".\n";
                 printHelp(cerr);
                 return 1;
             }
@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
 #else
                  "Revision: NOT-IN-GIT\n"
 #endif
-                 "Compiled at " << __TIME__ << " on " << __DATE__ << endl;
+                 "Compiled at " << __TIME__ << " on " << __DATE__ << "\n";
 
             printCompiledOptions(cout);
 
@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
         cfg_file = argv[config_arg_index];
 
         try {
-            // seperate path
+            // separate path
             boost::filesystem::path p(cfg_file);
             boost::filesystem::path dir = p.parent_path();
             filename = p.filename().string();
@@ -169,7 +169,7 @@ int main(int argc, char *argv[])
     for(auto it = dc_file_names.begin(); it != dc_file_names.end(); ++it) {
         bool ok = dclass::append(dcf, *it);
         if(!ok) {
-            mainlog.fatal() << "Could not read DC file " << *it << endl;
+            mainlog.fatal() << "Could not read DC file " << *it << ".\n";
             return 1;
         }
     }
@@ -196,7 +196,7 @@ int main(int argc, char *argv[])
                     // Make sure it exists
                     mainlog.fatal() << "For uberdog " << udnode["id"].as<doid_t>()
                                     << " Distributed class " << udnode["class"].as<std::string>()
-                                    << " does not exist!" << std::endl;
+                                    << " does not exist!\n";
                     return 1;
                 }
 
@@ -232,8 +232,7 @@ int main(int argc, char *argv[])
 
     // Catch any other exception that propogates
     catch(const exception &e) {
-        mainlog.fatal() << "Uncaught exception from the main event loop: "
-                        << e.what() << endl;
+        mainlog.fatal() << "Uncaught exception from the main event loop: " << e.what() << ".\n";
         return 1;
     }
 

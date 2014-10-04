@@ -9,11 +9,11 @@
 #include <condition_variable>
 #include <boost/asio.hpp>
 #include <boost/icl/interval_map.hpp>
-#include "ChannelMap.h"
 #include "core/global.h"
 #include "util/Datagram.h"
 #include "util/DatagramIterator.h"
 #include "net/NetworkAcceptor.h"
+#include "messagedirector/ChannelMap.h"
 
 class MDParticipantInterface;
 class MDUpstream;
@@ -24,6 +24,8 @@ class MDUpstream;
 class MessageDirector : public ChannelMap
 {
   public:
+    MessageDirector(const MessageDirector&) = delete;
+    MessageDirector& operator=(const MessageDirector&) = delete;
     ~MessageDirector();
 
     // init_network causes the MessageDirector to start listening for
@@ -37,36 +39,33 @@ class MessageDirector : public ChannelMap
     void route_datagram(MDParticipantInterface *p, DatagramHandle dg);
 
     // logger returns the MessageDirector log category.
-    inline LogCategory& logger()
-    {
-        return m_log;
-    }
+    inline LogCategory& logger() { return m_log; }
 
     // For MDUpstream (and subclasses) to call.
     void receive_datagram(DatagramHandle dg);
     void receive_disconnect();
 
   protected:
-    virtual void on_add_channel(channel_t c);
-    virtual void on_remove_channel(channel_t c);
-    virtual void on_add_range(channel_t lo, channel_t hi);
-    virtual void on_remove_range(channel_t lo, channel_t hi);
+    void on_add_channel(channel_t c) override;
+    void on_remove_channel(channel_t c) override;
+    void on_add_range(channel_t lo, channel_t hi) override;
+    void on_remove_range(channel_t lo, channel_t hi) override;
 
   private:
     MessageDirector();
 
-    bool m_initialized;
+    bool m_initialized = false;
 
-    NetworkAcceptor *m_net_acceptor;
-    MDUpstream *m_upstream;
+    NetworkAcceptor *m_net_acceptor = nullptr;
+    MDUpstream *m_upstream = nullptr;
 
     // Connected participants
     std::list<MDParticipantInterface*> m_participants;
     std::list<MDParticipantInterface*> m_terminated_participants;
 
     // Threading stuff:
-    bool m_shutdown;
-    std::thread *m_thread;
+    bool m_shutdown = false;
+    std::thread *m_thread = nullptr;
     std::mutex m_participants_lock;
     std::mutex m_terminated_lock;
     std::mutex m_messages_lock;
@@ -78,7 +77,7 @@ class MessageDirector : public ChannelMap
     void routing_thread();
     void shutdown_threading();
 
-    LogCategory m_log;
+    LogCategory m_log = LogCategory("msgdir", "Message Director");
 
     friend class MDParticipantInterface;
     void add_participant(MDParticipantInterface* participant);
@@ -87,7 +86,7 @@ class MessageDirector : public ChannelMap
     void recall_post_removes(channel_t sender);
 
     // I/O OPERATIONS
-    void handle_connection(boost::asio::ip::tcp::socket *socket);
+    void handle_connection(tcp::socket *socket);
 };
 
 
@@ -103,10 +102,9 @@ class MDParticipantInterface : public ChannelSubscriber
     friend class MessageDirector;
 
   public:
-    MDParticipantInterface()
-    {
-        MessageDirector::singleton.add_participant(this);
-    }
+    MDParticipantInterface() { MessageDirector::singleton.add_participant(this); }
+    MDParticipantInterface(const MDParticipantInterface&) = delete;
+    MDParticipantInterface& operator=(const MDParticipantInterface&) = delete;
     virtual ~MDParticipantInterface() {}
 
     // handle_datagram should handle a message received from the MessageDirector.
@@ -116,7 +114,7 @@ class MDParticipantInterface : public ChannelSubscriber
     // post_remove tells the MDParticipant to handle all of its post remove packets.
     inline void post_remove()
     {
-        logger().debug() << "MDParticipant '" << m_name << "' sending post removes..." << std::endl;
+        logger().debug() << "MDParticipant '" << m_name << "' sending post removes...\n";
         for(auto sender_it = m_post_removes.begin(); sender_it != m_post_removes.end(); ++sender_it) {
             // Route datagrams for the sender
             std::vector<DatagramHandle>& datagrams = sender_it->second;
@@ -149,12 +147,12 @@ class MDParticipantInterface : public ChannelSubscriber
     }
     inline void subscribe_channel(channel_t c)
     {
-        logger().trace() << "MDParticipant '" << m_name << "' subscribed channel: " << c << std::endl;
+        logger().trace() << "MDParticipant '" << m_name << "' subscribed channel: " << c << ".\n";
         MessageDirector::singleton.subscribe_channel(this, c);
     }
     inline void unsubscribe_channel(channel_t c)
     {
-        logger().trace() << "MDParticipant '" << m_name << "' unsubscribed channel: " << c << std::endl;
+        logger().trace() << "MDParticipant '" << m_name << "' unsubscribed channel: " << c << ".\n";
         MessageDirector::singleton.unsubscribe_channel(this, c);
     }
     inline void subscribe_range(channel_t lo, channel_t hi)
@@ -176,13 +174,13 @@ class MDParticipantInterface : public ChannelSubscriber
     }
     inline void add_post_remove(channel_t sender, DatagramHandle dg)
     {
-        logger().trace() << "MDParticipant '" << m_name << "' added post remove." << std::endl;
+        logger().trace() << "MDParticipant '" << m_name << "' added post remove." << ".\n";
         m_post_removes[sender].push_back(dg);
         MessageDirector::singleton.preroute_post_remove(sender, dg);
     }
     inline void clear_post_removes(channel_t sender)
     {
-        logger().trace() << "MDParticipant '" << m_name << "' cleared post removes." << std::endl;
+        logger().trace() << "MDParticipant '" << m_name << "' cleared post removes." << ".\n";
         m_post_removes.erase(sender);
         MessageDirector::singleton.recall_post_removes(sender);
     }

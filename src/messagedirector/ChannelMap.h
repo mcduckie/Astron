@@ -1,10 +1,10 @@
 #pragma once
+#include <mutex>
 #include <list>
 #include <set>
 #include <unordered_map>
-#include <mutex>
-#include "core/types.h"
 #include <boost/icl/interval_map.hpp>
+#include "core/types.h"
 
 class ChannelSubscriber
 {
@@ -30,6 +30,9 @@ class ChannelMap
 {
   public:
     ChannelMap();
+    ChannelMap(const ChannelMap&) = delete;
+    ChannelMap& operator=(const ChannelMap&) = delete;
+    virtual ~ChannelMap() {}
 
     // subscribe_channel adds a single channel to the mapping.
     // (Args) "c": the channel to be added.
@@ -64,13 +67,10 @@ class ChannelMap
     void lookup_channels(const std::list<channel_t> &cl, std::set<ChannelSubscriber *> &ps);
 
   protected:
-    virtual void on_add_channel(channel_t) { }
-
-    virtual void on_remove_channel(channel_t) { }
-
-    virtual void on_add_range(channel_t, channel_t) { }
-
-    virtual void on_remove_range(channel_t, channel_t) { }
+    virtual void on_add_channel(channel_t) {}
+    virtual void on_remove_channel(channel_t) {}
+    virtual void on_add_range(channel_t, channel_t) {}
+    virtual void on_remove_range(channel_t, channel_t) {}
 
   private:
     // Single channel subscriptions

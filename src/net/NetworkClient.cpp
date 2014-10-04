@@ -2,7 +2,6 @@
 #include "NetworkClient.h"
 #include <boost/bind.hpp>
 #include <stdexcept>
-
 using boost::asio::ip::tcp;
 namespace ssl = boost::asio::ssl;
 

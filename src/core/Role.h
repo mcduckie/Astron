@@ -17,7 +17,10 @@ class RoleConfigGroup : public ConfigGroup
 class Role : public MDParticipantInterface
 {
   protected:
-    Role(RoleConfig roleconfig);
+    Role(RoleConfig roleconfig) : m_roleconfig(roleconfig) {}
+    Role(const Role&) = delete;
+    Role& operator=(const Role&) = delete;
+    virtual ~Role() {}
 
     RoleConfig m_roleconfig;
 };

@@ -1,7 +1,6 @@
 #pragma once
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
-
 using boost::asio::ip::tcp;
 namespace ssl = boost::asio::ssl;
 

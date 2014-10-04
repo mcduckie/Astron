@@ -1,19 +1,20 @@
 #include "shutdown.h"
-#include <stdio.h>
+
+#include <cstdio>
+#include <cstdlib>
+#include <csignal>
 #include <iostream>
 #include <mutex>
-#ifdef WIN32
-#define WIN32_LEAN_AND_MEAN
-#  include <windows.h>
-#else
-#  include <signal.h>
-#  include <stdlib.h>
-#  include <unistd.h>
-#endif
 using namespace std;
 
-#include "global.h"
+#include "core/global.h"
 
+#ifdef WIN32
+#  define WIN32_LEAN_AND_MEAN
+#  include <windows.h>
+#else
+#  include <unistd.h>
+#endif
 
 const static int MAX_INTERRUPTS = 3;
 
@@ -21,7 +22,6 @@ static int exit_code = 0;
 static int interrupts = 0;
 static mutex exit_mtx;
 static mutex ctrlc_mtx;
-
 
 #ifdef WIN32 /* Handle Windows signals */
 static BOOL handle_interrupt(DWORD)
@@ -91,9 +91,7 @@ int astron_exit_code()
 }
 
 
-ShutdownException::ShutdownException(int exit_code) : m_exit_code(exit_code)
-{
-}
+ShutdownException::ShutdownException(int exit_code) : m_exit_code(exit_code) {}
 
 int ShutdownException::exit_code() const
 {

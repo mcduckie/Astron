@@ -1,5 +1,5 @@
 #pragma once
-#include <stdarg.h>
+#include <cstdarg>
 #include <string>
 #include <iostream>
 #include <fstream>
@@ -55,6 +55,8 @@ class LoggerBuf : public std::streambuf
 {
   public:
     LoggerBuf();
+    LoggerBuf(const LoggerBuf&) = delete;
+    LoggerBuf& operator=(const LoggerBuf&) = delete;
     LoggerBuf(const std::string &file_name, bool output_to_console = true);
   protected:
     int overflow(int c = EOF);
@@ -70,49 +72,37 @@ class LockedLogOutput
   public:
     LockedLogOutput(std::ostream *stream, std::recursive_mutex *lock) : m_stream(stream), m_lock(lock)
     {
-        if(m_lock) {
-            m_lock->lock();
-        }
+        if(m_lock) { m_lock->lock(); }
     }
 
     LockedLogOutput(const LockedLogOutput& other) : m_stream(other.m_stream), m_lock(other.m_lock)
     {
-        if(m_lock) {
-            m_lock->lock();
-        }
+        if(m_lock) { m_lock->lock(); }
     }
 
     LockedLogOutput& operator=(const LockedLogOutput&) = delete;   // non copyable
 
     ~LockedLogOutput()
     {
-        if(m_lock) {
-            m_lock->unlock();
-        }
+        if(m_lock) { m_lock->unlock(); }
     }
 
     template <typename T>
     LockedLogOutput &operator<<(const T &x)
     {
-        if(m_stream) {
-            *m_stream << x;
-        }
+        if(m_stream) { *m_stream << x; }
         return *this;
     }
 
     LockedLogOutput& operator<<(std::ostream & (*pf)(std::ostream&))
     {
-        if(m_stream) {
-            *m_stream << pf;
-        }
+        if(m_stream) { *m_stream << pf; }
         return *this;
     }
 
     LockedLogOutput& operator<<(std::basic_ios<char>& (*pf)(std::basic_ios<char>&))
     {
-        if(m_stream) {
-            *m_stream << pf;
-        }
+        if(m_stream) { *m_stream << pf; }
         return *this;
     }
 
@@ -149,7 +139,7 @@ class Logger
     LogSeverity m_severity;
     std::ostream m_output;
     std::recursive_mutex m_lock;
-    bool m_color_enabled;
+    bool m_color_enabled = true;
 };
 
 // A LogCategory is a wrapper for a Logger object that specially formats the output
@@ -157,79 +147,67 @@ class Logger
 class LogCategory
 {
   public:
-    LogCategory(const std::string &id, const std::string &name) : m_id(id), m_name(name)
-    {
-    }
+    LogCategory(const std::string &id, const std::string &name) : m_id(id), m_name(name) {}
+    LogCategory(const char* id, const std::string &name) : m_id(id), m_name(name) {}
+    LogCategory(const char* id, const char* name) : m_id(id), m_name(name) {}
 
-    LogCategory(const char* id, const std::string &name) : m_id(id), m_name(name)
-    {
-    }
-
-    LogCategory(const char* id, const char* name) : m_id(id), m_name(name)
-    {
-    }
-
-    void set_name(const std::string &name)
+    inline void set_name(const std::string &name)
     {
         m_name = name;
     }
 
-#define F(level, severity) \
-	LockedLogOutput level() \
-	{ \
+#define LOG_LEVEL(level, severity)                     \
+	inline LockedLogOutput level()                     \
+	{                                                  \
 		LockedLogOutput out = g_logger->log(severity); \
-		out << m_name << ": "; \
-		return out; \
+		out << m_name << ": ";                         \
+		return out;                                    \
 	}
+#define IGNORE_LEVEL(level)      \
+    inline NullStream &level() \
+    {                          \
+        return null_stream;    \
+    }
 
 #ifdef ASTRON_DEBUG_MESSAGES
     // packet() provides a stream with the time and "PACKET" severity preprended to the message.
     // packet messages are only output when compiled with -DASTRON_DEBUG_MESSAGES.
-    F(packet, LSEVERITY_PACKET)
+    LOG_LEVEL(packet, LSEVERITY_PACKET)
     // trace() provides a stream with the time and "TRACE" severity preprended to the message.
     // trace messages are only output when compiled with -DASTRON_DEBUG_MESSAGES.
-    F(trace, LSEVERITY_TRACE)
+    LOG_LEVEL(trace, LSEVERITY_TRACE)
     // debug() provides a stream with the time and "DEBUG" severity preprended to the message.
     // trace messages are only output when compiled with -DASTRON_DEBUG_MESSAGES.
-    F(debug, LSEVERITY_DEBUG)
+    LOG_LEVEL(debug, LSEVERITY_DEBUG)
 #else
     // packet() provides a stream with the time and "PACKET" severity preprended to the message.
     // packet messages are only output when compiled with -DASTRON_DEBUG_MESSAGES.
-    inline NullStream &packet()
-    {
-        return null_stream;
-    }
+    IGNORE_LEVEL(packet)
     // trace() provides a stream with the time and "TRACE" severity preprended to the message.
     // trace messages are only output when compiled with -DASTRON_DEBUG_MESSAGES.
-    inline NullStream &trace()
-    {
-        return null_stream;
-    }
+    IGNORE_LEVEL(trace)
     // debug() provides a stream with the time and "DEBUG" severity preprended to the message.
     // debug messages are only output when compiled with -DASTRON_DEBUG_MESSAGES.
-    inline NullStream &debug()
-    {
-        return null_stream;
-    }
-
+    IGNORE_LEVEL(debug)
 #endif
     // info() provides a stream with the time and "INFO" severity preprended to the message.
     // info messages are filtered with severity LSEVERITY_INFO.
-    F(info, LSEVERITY_INFO)
+    LOG_LEVEL(info, LSEVERITY_INFO)
     // warning() provides a stream with the time and "WARNING" severity preprended to the message.
     // warning messages are filtered with severity LSEVERITY_WARNING.
-    F(warning, LSEVERITY_WARNING)
+    LOG_LEVEL(warning, LSEVERITY_WARNING)
     // security() provides a stream with the time and "SECURITY" severity preprended to the message.
     // secutity messages are filtered with severity LSEVERITY_SECURITY.
-    F(security, LSEVERITY_SECURITY)
+    LOG_LEVEL(security, LSEVERITY_SECURITY)
     // error() provides a stream with the time and "ERROR" severity preprended to the message.
     // error messages are filtered with severity LSEVERITY_ERROR.
-    F(error, LSEVERITY_ERROR)
+    LOG_LEVEL(error, LSEVERITY_ERROR)
     // fatal() provides a stream with the time and "FATAL" severity preprended to the message.
     // fatal messages are filtered with severity LSEVERITY_FATAL.
-    F(fatal, LSEVERITY_FATAL)
+    LOG_LEVEL(fatal, LSEVERITY_FATAL)
 
-#undef F
+#undef LOG_LEVEL
+#undef IGNORE_LEVEL
 
   private:
     std::string m_id;
@@ -253,7 +231,7 @@ class NullBuffer : public std::streambuf
 };
 
 // NullStream is used with pre-processor definitions to define a stream that when
-// logged to, will be reduced to a no-op and compiled out.
+// logged to, will be reduced to a no-op and be compiled out.
 class NullStream
 {
   public:

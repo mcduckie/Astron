@@ -1,9 +1,9 @@
 #include "MDNetworkParticipant.h"
+#include <boost/bind.hpp>
 #include "core/global.h"
 #include "core/msgtypes.h"
-#include <boost/bind.hpp>
 
-MDNetworkParticipant::MDNetworkParticipant(boost::asio::ip::tcp::socket *socket)
+MDNetworkParticipant::MDNetworkParticipant(tcp::socket *socket)
     : MDParticipantInterface(), NetworkClient(socket)
 {
     set_con_name("Network Participant");
@@ -11,12 +11,12 @@ MDNetworkParticipant::MDNetworkParticipant(boost::asio::ip::tcp::socket *socket)
 
 void MDNetworkParticipant::handle_datagram(DatagramHandle dg, DatagramIterator&)
 {
-    logger().trace() << "MDNetworkParticipant sending to downstream MD" << std::endl;
+    logger().trace() << "MDNetworkParticipant sending to downstream MD.\n";
     try {
         send_datagram(dg);
     } catch(const boost::system::system_error &) {
         logger().warning() << "Received a system error while sending a datagram to a network "
-                           "participant (the participant may have lost connection)." << std::endl;
+                           "participant (the participant may have lost connection).\n";
         return;
     }
 }
@@ -70,8 +70,8 @@ void MDNetworkParticipant::receive_datagram(DatagramHandle dg)
             break;
         }
         default:
-            logger().error() << "MDNetworkParticipant got unknown control message, type : "
-                             << msg_type << std::endl;
+            logger().error() << "MDNetworkParticipant got unknown control message, type: "
+                             << msg_type << ".\n";
         }
         return;
     }

@@ -1,18 +1,13 @@
 #include "MDNetworkUpstream.h"
-#include "MessageDirector.h"
 #include "net/NetworkConnector.h"
 #include "core/global.h"
 #include "core/msgtypes.h"
+#include "messagedirector/MessageDirector.h"
+using namespace std;
 
-using boost::asio::ip::tcp;
+MDNetworkUpstream::MDNetworkUpstream(MessageDirector *md) : m_message_director(md) {}
 
-MDNetworkUpstream::MDNetworkUpstream(MessageDirector *md) :
-    m_message_director(md)
-{
-
-}
-
-boost::system::error_code MDNetworkUpstream::connect(const std::string &address)
+boost::system::error_code MDNetworkUpstream::connect(const string &address)
 {
     NetworkConnector connector(io_service);
     boost::system::error_code ec;

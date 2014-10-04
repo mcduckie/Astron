@@ -95,6 +95,7 @@ Functions should only be defined inline when they are small (~10 lines or less).
 Functions parameters should be ordered with inputs preceding outputs.
 
 ### Names and Order of Includes
+C includes should use C++ names `<ctime>` instead of C names `<time.h>`.
 Include paths should include the full path from the `src/` directory, with the exception of the
 header file corresponding to this file (ie. `foo.cxx` should use `#include "foo.h"`).
 Internal includes should use quotations and external includes should use angle brackets.
@@ -133,6 +134,10 @@ When implementing comparison operators, provide an implementation for all six of
 Comparison operators should be declared outside of a class (as non-member functions).  
 Don't overload other operators -- if you need to, follow normal C++ semantics.  
 
+### Virtual Functions
+Overridden virtual functions should be declared with override, not virtual.
+All classes with virtual methods should define a virtual destructor.
+
 ### Iterators
 Use prefix form (`++i`) of the increment and decrement operators with iterators.  
 Complex iterator types should use the `auto` keyword. Never use `auto` for anything else.  
@@ -143,3 +148,23 @@ If a variable is always of a specific size, use precise-width integers.
 
 ### Null Values
 Use `nullptr` instead of `NULL`.
+
+
+## Forbidden Features
+
+### C++11
+Don't use:
+
+* User defined literals - not supported by VS 12
+* Non-trivial unions - not supported by VS 12
+* Inline namespaces - not supported by VS 12
+
+### Exception specifications
+Don't use `throw` in function declarations.
+Don't use `noexcept` in function declarations.
+
+### C++14
+
+Don't use any C++14 features.
+We are currently restricting ourself to features
+supported by the latest Visual Studio compiler.

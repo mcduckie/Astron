@@ -4,6 +4,8 @@
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
 #include "util/Datagram.h"
+using boost::asio::ip::tcp;
+namespace ssl = boost::asio::ssl;
 
 class NetworkClient
 {
@@ -17,11 +19,11 @@ class NetworkClient
 
   protected:
     NetworkClient();
-    NetworkClient(boost::asio::ip::tcp::socket *socket);
-    NetworkClient(boost::asio::ssl::stream<boost::asio::ip::tcp::socket> *stream);
+    NetworkClient(tcp::socket *socket);
+    NetworkClient(ssl::stream<tcp::socket> *stream);
     virtual ~NetworkClient();
-    void set_socket(boost::asio::ip::tcp::socket *socket);
-    void set_socket(boost::asio::ssl::stream<boost::asio::ip::tcp::socket> *stream);
+    void set_socket(tcp::socket *socket);
+    void set_socket(ssl::stream<tcp::socket> *stream);
 
 
     /** Pure virtual methods **/
@@ -50,9 +52,9 @@ class NetworkClient
     virtual void receive_data(const boost::system::error_code &ec, size_t bytes_transferred);
 
 
-    boost::asio::ip::tcp::socket *m_socket;
-    boost::asio::ssl::stream<boost::asio::ip::tcp::socket> *m_secure_socket;
-    boost::asio::ip::tcp::endpoint m_remote;
+    tcp::socket *m_socket;
+    ssl::stream<boost::asio::ip::tcp::socket> *m_secure_socket;
+    tcp::endpoint m_remote;
 
   private:
     typedef void (NetworkClient::*receive_handler_t)(const boost::system::error_code&, size_t);
