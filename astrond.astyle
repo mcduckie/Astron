@@ -3,12 +3,15 @@ max-code-length=100
 
 # Brackets
 style=linux
+keep-one-line-blocks
 
 # Indentation
 indent=spaces=4
 indent-modifiers
 indent-col1-comments
+indent-labels
 
-# Whiteespace
+# Whitespace
 pad-oper
 unpad-paren
+convert-tabs
