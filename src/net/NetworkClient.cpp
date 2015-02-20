@@ -30,7 +30,14 @@ NetworkClient::~NetworkClient()
         std::lock_guard<std::recursive_mutex> lock(m_lock);
         m_socket->close();
     }
-    delete m_socket;
+    if(m_ssl_enabled) {
+        // This also deletes m_socket:
+        delete m_secure_socket;
+    } else {
+        // ONLY delete m_socket if we must do so directly. If it's wrapped in
+        // an SSL stream, the stream "owns" the socket.
+        delete m_socket;
+    }
     delete [] m_data_buf;
 }
 
